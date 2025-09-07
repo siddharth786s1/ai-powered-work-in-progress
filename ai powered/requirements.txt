@@ -4,4 +4,5 @@ joblib
 Flask
 Flask-Cors
 PyPDF2
-transformerspip 
+transformers
+python-docx

@@ -1,0 +1,174 @@
+
+<!-- index.html -->
+<!-- AI-Powered Career Path Recommender Frontend -->
+<!-- Uses Tailwind CSS CDN for styling and modern JS for logic -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI-Powered Career Path Recommender</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <header class="bg-blue-600 text-white py-6 shadow">
+    <h1 class="text-3xl font-bold text-center">AI-Powered Career Path Recommender</h1>
+    <p class="text-center mt-2">Discover your ideal career path with AI-driven recommendations</p>
+  </header>
+  <main class="flex-1 flex flex-col items-center justify-center px-4">
+    <!-- File Upload Section -->
+    <section class="w-full max-w-md bg-white rounded-lg shadow p-6 mt-8">
+      <h2 class="text-xl font-semibold mb-4">Upload Your Resume</h2>
+      <input id="resumeInput" type="file" accept=".pdf,.doc,.docx,.txt"
+        class="block w-full mb-4 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <button id="analyzeBtn" disabled
+        class="w-full bg-blue-600 text-white py-2 rounded font-semibold transition disabled:opacity-50 hover:bg-blue-700">
+        Analyze
+      </button>
+      <!-- Loading Spinner -->
+      <div id="spinner" class="flex justify-center mt-4 hidden">
+        <svg class="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+          <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v8z"/>
+        </svg>
+      </div>
+      <!-- Message Box -->
+      <div id="messageBox" class="mt-4 hidden px-4 py-2 rounded bg-blue-100 text-blue-800 text-center"></div>
+    </section>
+    <!-- Results Section -->
+    <section id="resultsSection" class="w-full max-w-2xl mt-10 hidden">
+      <h2 class="text-xl font-semibold mb-4">Extracted Skills</h2>
+      <ul id="skillsList" class="mb-6 flex flex-wrap gap-2"></ul>
+      <h2 class="text-xl font-semibold mb-4">Recommended Careers</h2>
+      <div id="recommendations" class="space-y-4"></div>
+    </section>
+  </main>
+  <footer class="bg-gray-200 text-center py-4 mt-auto">
+    <span class="text-gray-600">© 2025 AI Career Path Recommender</span>
+  </footer>
+  <script>
+    // Elements
+    const resumeInput = document.getElementById('resumeInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const spinner = document.getElementById('spinner');
+    const messageBox = document.getElementById('messageBox');
+    const resultsSection = document.getElementById('resultsSection');
+    const skillsList = document.getElementById('skillsList');
+    const recommendationsDiv = document.getElementById('recommendations');
+
+    // Backend API base URL
+    const API_BASE = "http://localhost:5000/api";
+
+    // Enable button when file is selected
+    resumeInput.addEventListener('change', () => {
+      analyzeBtn.disabled = !resumeInput.files.length;
+    });
+
+    // Show custom message box
+    function showMessage(msg, type = "info") {
+      messageBox.textContent = msg;
+      messageBox.className = `mt-4 px-4 py-2 rounded text-center ${
+        type === "error" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"
+      }`;
+      messageBox.style.display = "block";
+    }
+
+    // Hide message box
+    function hideMessage() {
+      messageBox.style.display = "none";
+    }
+
+    // Show/hide spinner
+    function showSpinner() { spinner.style.display = "flex"; }
+    function hideSpinner() { spinner.style.display = "none"; }
+
+    // Display extracted skills
+    function displaySkills(skills) {
+      skillsList.innerHTML = "";
+      skills.forEach(skill => {
+        const li = document.createElement('li');
+        li.textContent = skill;
+        li.className = "bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm";
+        skillsList.appendChild(li);
+      });
+    }
+
+    // Display career recommendations
+    function displayRecommendations(recommendations) {
+      recommendationsDiv.innerHTML = "";
+      recommendations.forEach(rec => {
+        const div = document.createElement('div');
+        div.className = "bg-white rounded shadow p-4";
+        div.innerHTML = `
+          <h3 class="text-lg font-bold mb-2">${rec.title}</h3>
+          <p class="mb-1">Match Score: <span class="font-semibold text-blue-600">${rec.match_score}%</span></p>
+          <p class="mb-1">Skills to Improve: ${
+            rec.missing_skills.length
+              ? rec.missing_skills.map(s => `<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs mr-1">${s}</span>`).join('')
+              : '<span class="text-green-600 font-semibold">None! You are a great fit.</span>'
+          }</p>
+        `;
+        recommendationsDiv.appendChild(div);
+      });
+    }
+
+    // Main analyze flow
+    analyzeBtn.addEventListener('click', async () => {
+      hideMessage();
+      resultsSection.style.display = "none";
+      showSpinner();
+      analyzeBtn.disabled = true;
+      showMessage("Analyzing resume...");
+
+      // Step 1: Upload resume and get skills
+      const formData = new FormData();
+      formData.append('file', resumeInput.files[0]);
+      let skills;
+      try {
+        const res = await fetch(`${API_BASE}/upload_resume`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.skills) throw new Error(data.error || "Failed to extract skills.");
+        skills = data.skills;
+      } catch (err) {
+        showMessage("Error extracting skills: " + err.message, "error");
+        hideSpinner();
+        analyzeBtn.disabled = false;
+        return;
+      }
+
+      // Step 2: Get career recommendations
+      showMessage("Fetching career recommendations...");
+      let recommendations;
+      try {
+        const res = await fetch(`${API_BASE}/recommend`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ skills }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.recommendations) throw new Error(data.error || "Failed to get recommendations.");
+        recommendations = data.recommendations;
+      } catch (err) {
+        showMessage("Error fetching recommendations: " + err.message, "error");
+        hideSpinner();
+        analyzeBtn.disabled = false;
+        return;
+      }
+
+      // Step 3: Display results
+      hideSpinner();
+      showMessage("Recommendations ready!");
+      displaySkills(skills);
+      displayRecommendations(recommendations);
+      resultsSection.style.display = "block";
+      analyzeBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>
